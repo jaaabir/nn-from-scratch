@@ -6,7 +6,7 @@ def sigmoid(z):
     return 1 / (1 + np.exp(-z))
 
 def sigmoid_prime(da, z):
-    return da * sigmoid(z) * (1 - sigmoid(z))
+    return da * (sigmoid(z) * (1 - sigmoid(z)))
     
 def relu(z):
     return np.maximum(0, z)
@@ -29,10 +29,11 @@ class Network(BaseEstimator):
         
     def initialize_parameters(self):
         w = [
-            np.random.randn(next_layer, current_layer) * self.learning_rate for current_layer, next_layer in zip(self.layers[:-1], self.layers[1:]) 
+            np.random.randn(next_layer, current_layer) * 0.01 for current_layer, next_layer in zip(self.layers[:-1], self.layers[1:]) 
         ]
         b = [
-            np.random.randn(next_layer, 1) * self.learning_rate for next_layer in self.layers[1:]
+            # np.random.randn(next_layer, 1) for next_layer in self.layers[1:]
+            np.zeros((next_layer, 1)) for next_layer in self.layers[1:]
         ]
         
         return w, b
@@ -126,7 +127,7 @@ class Network(BaseEstimator):
                 self.cache[f"w{l}"] = self.cache[f"w{l}"] - (self.learning_rate * self.cache[f"dw{l}"])
                 self.cache[f"b{l}"] = self.cache[f"b{l}"] - (self.learning_rate * self.cache[f"b{l}"]) 
                 
-            if epoch % 2 == 0:
+            if epoch % 100 == 0:
                 self.costs.append(cost)
                 
         return 

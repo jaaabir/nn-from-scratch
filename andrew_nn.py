@@ -57,7 +57,9 @@ class Network(BaseEstimator):
         for l, units in enumerate(zip(layer_dims[:-1], layer_dims[1:])):
 
             current_units, next_units = units
-            parameters['W' + str(l + 1)] = np.random.randn(next_units, current_units) * 0.01
+            # initializer = np.sqrt(2 / current_units) if (l + 1) < (L - 1) else 0.01
+            initializer = 0.01
+            parameters['W' + str(l + 1)] = np.random.randn(next_units, current_units) * initializer
             parameters['b' + str(l + 1)] = np.zeros((next_units, 1))
 
         return parameters
@@ -170,7 +172,7 @@ class Network(BaseEstimator):
             grads = self.L_model_backward(al, y, caches)
             params = self.update_parameters(params, grads, self.learning_rate)
     
-            if epoch % 2 == 0:
+            if epoch % 100 == 0:
                 self.costs.append(cost)
                 
         self.params = params
