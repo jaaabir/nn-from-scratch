@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 df = pd.read_csv('heart.csv')
 x = df.drop(['target'], axis = 1)
 y = df.target
-xt, xtest, yt, ytest = train_test_split(x, y, test_size = 0.2, stratify=y)
+xt, xtest, yt, ytest = train_test_split(x, y, test_size = 0.2, stratify=y, random_state = 123)
 
 model = Network(
     layers = [13, 10, 1],
