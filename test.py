@@ -12,13 +12,16 @@ x = df.drop(['target'], axis = 1)
 y = df.target
 xt, xtest, yt, ytest = train_test_split(x, y, test_size = 0.2, stratify=y, random_state = 123)
 
+# comparision between GD vs adam optimizer ( adam is so much better )
 model = Network(
     layers = [13, 10, 1],
     activations = ['relu', 'sigmoid'],
     epoches = 5000,
     learning_rate = 0.01,
+    optimizer = 'adam',
     random_state= 3
 )
+
 
 # model = Network(
 #     layers = [13, 10, 1],
@@ -26,7 +29,7 @@ model = Network(
 #     epoches = 5000,
 #     learning_rate = 0.01,
 #     random_state = 3,
-#     optimizer = 'adam'
+#     optimizer = 'gd'
 # )
 
 

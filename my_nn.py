@@ -21,7 +21,7 @@ def relu_prime(da, z):
 
 class Network(BaseEstimator):
     def __init__(self, learning_rate = 0.01, epoches = 30, activations = [], layers  = [], 
-                optimizer = 'gd', batch_size = 64, beta1 = 0.9, beta2 = 0.999, epsilon = 1e-8, decay_rate = 0.5, 
+                optimizer = 'adam', batch_size = 64, beta1 = 0.9, beta2 = 0.999, epsilon = 1e-8, decay_rate = 0.5, 
                 random_state = None, regularization = 'l2', keep_prob = 1, lambd = 0, t = 2, y_reshape = False):
         
         self.random_state = random_state
