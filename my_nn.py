@@ -1,4 +1,7 @@
-import numpy as np 
+import numpy as np
+import pandas as pd 
+from numpy import random
+from numpy.random.mtrand import beta, random_sample 
 from sklearn.base import BaseEstimator
 from tqdm import tqdm
 
@@ -17,7 +20,14 @@ def relu_prime(da, z):
     return dz
 
 class Network(BaseEstimator):
-    def __init__(self, learning_rate = 0.01, epoches = 30, activations = [], layers  = []):
+    def __init__(self, learning_rate = 0.01, epoches = 30, activations = [], layers  = [], 
+                optimizer = 'gd', batch_size = 64, beta1 = 0.9, beta2 = 0.999, epsilon = 1e-8, decay_rate = 0.5, 
+                random_state = None, regularization = 'l2', keep_prob = 1, lambd = 0, t = 2, y_reshape = False):
+        
+        self.random_state = random_state
+        if self.random_state:
+            np.random.seed(self.random_state)
+
         self.learning_rate = learning_rate
         self.layers = layers
         self.n_layers = len(layers) - 1            
@@ -25,19 +35,39 @@ class Network(BaseEstimator):
         self.epoches = epoches
         self.weights, self.biases = self.initialize_parameters()
         self.cache = self.initialize_cache()
+        self.v, self.s = self.initialize_ewa()
         self.costs = []
+        self.optimizer = optimizer
+        self.batch_size = batch_size
+        self.beta1 = beta1
+        self.beta2 = beta2
+        self.decay_rate = decay_rate
+        self.regularization = regularization
+        self.keep_prob = keep_prob
+        self.epsilon = epsilon
+        self.t = t
+        self.y_reshape = y_reshape
         
     def initialize_parameters(self):
-        np.random.seed(3)
         w = [
             np.random.randn(next_layer, current_layer) * 0.01 for current_layer, next_layer in zip(self.layers[:-1], self.layers[1:]) 
         ]
         b = [
-            # np.random.randn(next_layer, 1) for next_layer in self.layers[1:]
             np.zeros((next_layer, 1)) for next_layer in self.layers[1:]
         ]
         
         return w, b
+
+    def initialize_ewa(self):
+        v = {}
+        s = {}
+        for i in range(len(self.weights)):
+            v[f'dw{i + 1}'] = np.zeros(self.weights[i].shape)
+            v[f'db{i + 1}'] = np.zeros(self.biases[i].shape)
+            s[f'dw{i + 1}'] = np.zeros(self.weights[i].shape)
+            s[f'db{i + 1}'] = np.zeros(self.biases[i].shape)
+
+        return v, s
     
     def initialize_cache(self):
         c = {}
@@ -95,7 +125,8 @@ class Network(BaseEstimator):
     def backward(self, a, y):
         
         L = self.n_layers
-        y = y.values.reshape(a.shape)
+        if self.y_reshape:
+            y = y.reshape(a.shape)
         da = - (np.divide(y, a) - np.divide((1 - y), (1 - a)))
         self.cache["da" + str(L)] = da
         
@@ -114,27 +145,87 @@ class Network(BaseEstimator):
         return
         
     def compute_cost(self, a, y):
-        y = y.values.reshape(a.shape)
+        if self.y_reshape:
+            y = y.reshape(a.shape)
         loss = np.multiply(y, np.log(a)) + np.multiply((1 - y), np.log(1 - a))
         return -np.mean(loss)
-    
+
+    def update_parameters(self):
+        for l in range(1, self.n_layers + 1):
+            self.cache[f"w{l}"] = self.cache[f"w{l}"] - (self.learning_rate * self.cache[f"dw{l}"])
+            self.cache[f"b{l}"] = self.cache[f"b{l}"] - (self.learning_rate * self.cache[f"db{l}"]) 
+
+    def update_paramters_with_adam(self):
+        v_corrected = {}
+        s_corrected = {}
+
+        for l in range(1, self.n_layers + 1):
+            self.v[f'dw{l}'] = (self.beta1 * self.v[f'dw{l}']) + ((1 - self.beta1) * self.cache[f'dw{l}'])
+            self.v[f'db{l}'] = (self.beta1 * self.v[f'db{l}']) + ((1 - self.beta1) * self.cache[f'db{l}'])
+
+            v_corrected[f'dw{l}'] = self.v[f'dw{l}'] / ( 1 - self.beta1**self.t )
+            v_corrected[f'db{l}'] = self.v[f'db{l}'] / ( 1 - self.beta1**self.t )
+
+            self.s[f'dw{l}'] = (self.beta2 * self.s[f'dw{l}']) + ((1 - self.beta2) * self.cache[f'dw{l}']**2)
+            self.s[f'db{l}'] = (self.beta2 * self.s[f'db{l}']) + ((1 - self.beta2) * self.cache[f'db{l}']**2)
+
+            s_corrected[f'dw{l}'] = self.s[f'dw{l}'] / ( 1 - self.beta2**self.t )
+            s_corrected[f'db{l}'] = self.s[f'db{l}'] / ( 1 - self.beta2**self.t )
+
+            self.cache[f"w{l}"] = self.cache[f"w{l}"] - (self.learning_rate * (v_corrected[f'dw{l}'] / (np.sqrt(s_corrected[f'dw{l}']) + self.epsilon)))
+            self.cache[f"b{l}"] = self.cache[f"b{l}"] - (self.learning_rate * (v_corrected[f'db{l}'] / (np.sqrt(s_corrected[f'db{l}']) + self.epsilon)))
+
     def GD(self, X, y):
         for epoch in tqdm(range(self.epoches)):
             yhat = self.forward(X)
             cost = self.compute_cost(yhat, y)
             self.backward(yhat, y)
             
-            for l in range(1, self.n_layers + 1):
-                self.cache[f"w{l}"] = self.cache[f"w{l}"] - (self.learning_rate * self.cache[f"dw{l}"])
-                self.cache[f"b{l}"] = self.cache[f"b{l}"] - (self.learning_rate * self.cache[f"db{l}"]) 
+            self.update_parameters()
                 
             if epoch % 100 == 0:
                 self.costs.append(cost)
                 
         return 
+
+    def adam(self, X, Y):
+        for epoch in tqdm(range(self.epoches)):
+            idx = np.random.permutation(X.shape[1])
+            shuffled_X = X[:, idx]
+            shuffled_y = Y[:, idx]
+
+            st = 0
+            ed = self.batch_size
+            iter_per_batch_size = (X.shape[1] // self.batch_size) + 1
+
+            for _ in range(iter_per_batch_size):
+                batch_X = shuffled_X[:, st : ed]
+                batch_Y = shuffled_y[:, st : ed]
+
+                if batch_X.shape[1] > 0:
+                    yhat = self.forward(batch_X)
+                    cost = self.compute_cost(yhat, batch_Y)
+                    self.backward(yhat, batch_Y)
+
+                    self.update_paramters_with_adam()
+
+                    st  = ed
+                    ed += self.batch_size 
+
+                    if epoch % 100 == 0:
+                        self.costs.append(cost)
+
+
                 
     def fit(self, X, y):
-        self.GD(X, y)
+        X = np.array(X)
+        y = np.array(y)
+
+        if self.optimizer == 'gd':
+            self.GD(X, y)
+        else:
+            self.adam(X, y)
+
         return self
         
     def predict(self, X):
