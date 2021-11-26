@@ -22,7 +22,7 @@ def relu_prime(da, z):
 class Network(BaseEstimator):
     def __init__(self, learning_rate = 0.01, epoches = 30, activations = [], layers  = [], 
                 optimizer = 'adam', batch_size = 64, beta1 = 0.9, beta2 = 0.999, epsilon = 1e-8, decay_rate = 0.5, 
-                random_state = None, regularization = 'l2', keep_prob = 1, lambd = 0, t = 2, y_reshape = False):
+                random_state = None, regularization = 'l2', keep_prob = 1, lambd = 1, t = 2, y_reshape = False):
         
         self.random_state = random_state
         if self.random_state:
@@ -43,6 +43,7 @@ class Network(BaseEstimator):
         self.beta2 = beta2
         self.decay_rate = decay_rate
         self.regularization = regularization
+        self.lambd = lambd
         self.keep_prob = keep_prob
         self.epsilon = epsilon
         self.t = t
@@ -108,6 +109,8 @@ class Network(BaseEstimator):
         m = A_prev.shape[1]
 
         dW = np.dot(dZ, A_prev.T) / m
+        if self.regularization == 'l2':
+            dW = dW + (self.lambd / m) * W
         db = np.mean(dZ, keepdims = True, axis = 1)
         dA_prev = np.dot(W.T, dZ)
 
@@ -144,11 +147,23 @@ class Network(BaseEstimator):
             
         return
         
-    def compute_cost(self, a, y):
+    def cross_entropy_loss(self, a, y):
         if self.y_reshape:
             y = y.reshape(a.shape)
         loss = np.multiply(y, np.log(a)) + np.multiply((1 - y), np.log(1 - a))
         return -np.mean(loss)
+
+    def compute_cost(self, a, y):
+        loss = self.cross_entropy_loss(a, y)
+        if self.regularization == 'l2':
+            new_weights = 0
+            for l in range(1, self.n_layers + 1):
+                new_weights += np.sum(np.square(self.cache[f'w{l}']))
+            l2_loss = (self.lambd / (2 * a.shape[1])) * new_weights
+
+            loss = loss + l2_loss
+
+        return loss
 
     def update_parameters(self):
         for l in range(1, self.n_layers + 1):

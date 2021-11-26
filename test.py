@@ -19,7 +19,8 @@ model = Network(
     epoches = 5000,
     learning_rate = 0.01,
     optimizer = 'adam',
-    random_state= 3
+    random_state= 3,
+    lambd = 1
 )
 
 
